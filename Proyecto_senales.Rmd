@@ -137,6 +137,8 @@ La idea general es extraer características como MFCCs, RMS, Tempo y beats, etc.
 Comprobamos en primer lugar que todas las canciones tienen la misma frecuencia de muestreo:
 
 ```{r}
+library(tuneR)
+
 # Función para obtener frecuencias de muestreo de todas las canciones en las carpetas de géneros
 get_all_sampling_rates <- function(base_path) {
   # Lista de géneros
@@ -187,4 +189,81 @@ print(sampling_rates_df)
 
 ```
 
+Comprobamos si todas las canciones son válidas para extraer MFCCs:
+
+```{r}
+library(tuneR)
+
+# Función para verificar si un archivo de audio es válido para calcular MFCC
+is_valid_for_mfcc <- function(file_path, target_sr = 22050, min_duration_seconds = 1) {
+  # Leer el archivo de audio
+  audio <- tryCatch({
+    readWave(file_path)
+  }, error = function(e) {
+    message("Error leyendo archivo: ", file_path, " - ", e$message)
+    return(NULL)
+  })
+  
+  # Si no se pudo leer el archivo, no es válido
+  if (is.null(audio)) return(FALSE)
+  
+  # Verificar duración mínima (en muestras)
+  duration_samples <- length(audio@left)
+  if (duration_samples < target_sr * min_duration_seconds) {
+    message("Archivo demasiado corto: ", file_path)
+    return(FALSE)
+  }
+  
+  # Verificar amplitud máxima
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude == 0) {
+    message("Archivo contiene solo silencio: ", file_path)
+    return(FALSE)
+  }
+  
+  # Si pasa todas las verificaciones, es válido
+  return(TRUE)
+}
+
+# Ejemplo de uso con una lista de archivos
+validate_audio_files <- function(base_path, genres) {
+  # Crear un data frame para almacenar los resultados
+  validation_results <- data.frame(
+    Genre = character(),
+    File = character(),
+    IsValid = logical(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar los archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      # Validar cada archivo
+      for (file in wav_files) {
+        is_valid <- is_valid_for_mfcc(file)
+        validation_results <- rbind(validation_results, data.frame(
+          Genre = genre,
+          File = basename(file),
+          IsValid = is_valid
+        ))
+      }
+    }
+  }
+  
+  return(validation_results)
+}
+
+# Lista de géneros
+genres <- c("jazz", "hardstyle", "regueton", "rock", "rap", "opera", "rancheras")
+
+# Validar canciones en las carpetas de géneros
+validation_results <- validate_audio_files("data_recortada", genres)
+
+# Ver resultados
+print(validation_results)
+
+```
 
