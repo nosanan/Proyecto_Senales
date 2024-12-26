@@ -10,6 +10,91 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-
+library(tuneR)
 ```
+
+```{r}
+cutAudio <- function(input_file, 
+                     output_file, 
+                     duration_seconds = 130) {
+  # Lee la canción (archivo WAV)
+  audio <- readWave(input_file)
+  
+  # Frecuencia de muestreo (samples por segundo)
+  sr <- audio@samp.rate
+  
+  # Número de muestras que queremos (130s * sr)
+  num_samples <- duration_seconds * sr
+  
+  # Longitud actual de la señal en muestras (canal izquierdo)
+  len_audio <- length(audio@left)
+  
+  if (len_audio > num_samples) {
+    # 1) Si es más larga, recortamos
+    audio@left  <- audio@left[1:num_samples]
+    if (!is.null(audio@right)) {
+      audio@right <- audio@right[1:num_samples]
+    }
+  } else if (len_audio < num_samples) {
+    # 2) Si es más corta, rellenamos con ceros (silencio)
+    needed <- num_samples - len_audio
+    audio@left  <- c(audio@left,  rep(0, needed))
+    if (!is.null(audio@right)) {
+      audio@right <- c(audio@right, rep(0, needed))
+    }
+  }
+  
+  # Guardamos la versión recortada
+  writeWave(audio, output_file)
+}
+```
+
+
+```{r}
+# Directorio principal de entrada
+data_dir <- "data"
+
+# Directorio principal de salida
+output_main_dir <- "data_recortada"
+
+# Creamos la carpeta de salida si no existe
+if(!dir.exists(output_main_dir)) {
+  dir.create(output_main_dir)
+}
+
+# Obtenemos la lista de subcarpetas dentro de data/ (sin recursividad)
+subcarpetas <- list.dirs(path = data_dir, full.names = TRUE, recursive = FALSE)
+
+# Recorremos cada subcarpeta (ej: data/hardstyle, data/jazz, etc.)
+for (sub in subcarpetas) {
+  
+  # Nombre de la subcarpeta (por ejemplo, "hardstyle", "jazz", etc.)
+  nombre_subcarpeta <- basename(sub) 
+  
+  # Creamos en data_recortada/ una subcarpeta con el mismo nombre
+  # Ej: data_recortada/hardstyle
+  output_subcarpeta <- file.path(output_main_dir, nombre_subcarpeta)
+  if (!dir.exists(output_subcarpeta)) {
+    dir.create(output_subcarpeta)
+  }
+  
+  # Listamos los archivos .wav en la subcarpeta original
+  wav_files <- list.files(sub, pattern = "\\.wav$", full.names = TRUE)
+  
+  # Para cada archivo .wav, recortar y guardar
+  for (wav in wav_files) {
+    # Sacamos el nombre del archivo, p. ej. "cancion1.wav"
+    base_name <- basename(wav)
+    
+    # Definimos dónde se guardará en la carpeta recortada
+    out_wav <- file.path(output_subcarpeta, base_name)
+    
+    # Llamamos a nuestra función cutAudio
+    cutAudio(input_file  = wav, 
+             output_file = out_wav,
+             duration_seconds = 130)  # 2 minutos 10 seg
+  }
+}
+```
+
 
