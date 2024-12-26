@@ -97,4 +97,10 @@ for (sub in subcarpetas) {
 }
 ```
 
+```{r}
+file1 <- readWave("data_recortada/jazz/Jazz-at-Mladost-Club-No-More-Blues.wav")
+file1@right
+max(file1@left)
+plot(file1)
+```
 
