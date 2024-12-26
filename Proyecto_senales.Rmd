@@ -132,3 +132,59 @@ max(file1@left)
 plot(file1)
 ```
 
+La idea general es extraer características como MFCCs, RMS, Tempo y beats, etc. Crear un dataframe con los valores para cada canción y a partir de ahí ir entrenando el modelo para detectar el género musical.
+
+Comprobamos en primer lugar que todas las canciones tienen la misma frecuencia de muestreo:
+
+```{r}
+# Función para obtener frecuencias de muestreo de todas las canciones en las carpetas de géneros
+get_all_sampling_rates <- function(base_path) {
+  # Lista de géneros
+  genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+  
+  # Data frame para almacenar los resultados
+  all_sampling_rates <- data.frame(
+    Genre = character(),
+    File = character(),
+    SamplingRate = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Recorremos cada género
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    
+    # Verificar si la carpeta existe
+    if (dir.exists(genre_path)) {
+      # Listar archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      # Extraer frecuencias de muestreo
+      genre_rates <- sapply(wav_files, function(file) {
+        audio <- readWave(file)
+        return(audio@samp.rate) # Frecuencia de muestreo
+      })
+      
+      # Agregar al data.frame
+      genre_df <- data.frame(
+        Genre = genre,
+        File = basename(wav_files),
+        SamplingRate = genre_rates,
+        stringsAsFactors = FALSE
+      )
+      all_sampling_rates <- rbind(all_sampling_rates, genre_df)
+    }
+  }
+  
+  return(all_sampling_rates)
+}
+
+# Ejemplo de uso
+sampling_rates_df <- get_all_sampling_rates("data_recortada")
+
+# Visualizar los resultados
+print(sampling_rates_df)
+
+```
+
+
