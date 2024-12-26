@@ -11,10 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Inicio 
 ```{r}
-cat("HOla")
-
+cat("Hola")
 ```
 
+```{r}
+cat("Toni te va?")
+cat("Si, a ti?")
+```
 
 
 
