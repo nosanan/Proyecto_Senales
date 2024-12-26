@@ -267,3 +267,89 @@ print(validation_results)
 
 ```
 
+Como la MFCC da error, comenzamos calculando mejor los centroides espectrales de cada canción:
+```{r}
+library(tuneR)
+library(seewave)
+
+# Función para calcular el Centroide Espectral
+calculate_spectral_centroid <- function(file_path, target_sr = 22050) {
+  # Leer el archivo de audio
+  audio <- tryCatch({
+    readWave(file_path)
+  }, error = function(e) {
+    message("Error leyendo archivo: ", file_path, " - ", e$message)
+    return(NULL)
+  })
+  
+  # Si no se pudo leer el archivo, devolver NULL
+  if (is.null(audio)) return(NA)
+  
+  # Renormalizar la amplitud
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude > 0) {
+    audio@left <- audio@left / max_amplitude
+    if (audio@stereo) {
+      audio@right <- audio@right / max_amplitude
+    }
+  }
+  
+  # Resamplear si la frecuencia de muestreo no coincide con target_sr
+  if (audio@samp.rate != target_sr) {
+    audio <- resamp(audio, f = audio@samp.rate, g = target_sr, output = "Wave")
+  }
+  
+  # Calcular el espectrograma promedio
+  spectrum <- meanspec(audio, f = target_sr, plot = FALSE)
+  
+  # Calcular el Centroide Espectral
+  tryCatch({
+    specprop(spectrum)$cent
+  }, error = function(e) {
+    message("Error calculando Centroide Espectral para: ", file_path, " - ", e$message)
+    return(NA)
+  })
+}
+
+# Función para extraer el Centroide Espectral de todas las canciones
+extract_all_spectral_centroids <- function(base_path, genres, target_sr = 22050) {
+  # Data frame para almacenar los resultados
+  spectral_centroids <- data.frame()
+  
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar los archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      for (file in wav_files) {
+        # Calcular el Centroide Espectral
+        centroid <- calculate_spectral_centroid(file, target_sr)
+        
+        # Crear un data frame temporal con el resultado
+        centroid_df <- data.frame(
+          Genre = genre,
+          File = basename(file),
+          SpectralCentroid = centroid
+        )
+        
+        # Agregar al data frame principal
+        spectral_centroids <- rbind(spectral_centroids, centroid_df)
+      }
+    }
+  }
+  
+  return(spectral_centroids)
+}
+
+# Lista de géneros
+genres <- c("jazz", "hardstyle", "regueton", "rock", "rap", "opera", "rancheras")
+
+# Extraer los Centroides Espectrales de todas las canciones
+spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres)
+
+# Ver las primeras filas
+head(spectral_centroids_df)
+
+```
+
