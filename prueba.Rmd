@@ -12,7 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Inicio 
 ```{r}
 cat("HOla")
-
 ```
 
 
