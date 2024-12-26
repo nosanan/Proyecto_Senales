@@ -11,14 +11,36 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tuneR)
+library(seewave)
 ```
 
 ```{r}
+# Esta función normaliza la amplitud y unifica la frecuencia de muestreo
+normalize_and_resample <- function(audio, target_sr = 22050) {
+  # Normalizamos la amplitud (entre 0 y 1)
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude > 0) {
+    audio@left <- audio@left / max_amplitude
+    if (audio@stereo) {
+      audio@right <- audio@right / max_amplitude
+    }
+  }
+  
+  # Unificamos la frecuencia de muestreo
+  audio_resampled <- resamp(audio, f = audio@samp.rate, g = target_sr, output = "Wave")
+  
+  return(audio_resampled)
+}
+
 cutAudio <- function(input_file, 
                      output_file, 
-                     duration_seconds = 130) {
+                     duration_seconds = 130, 
+                     target_sr = 22050) {
   # Lee la canción (archivo WAV)
   audio <- readWave(input_file)
+  
+  # Normalizamos y reesampleamos
+  audio <- normalize_and_resample(audio, target_sr)
   
   # Frecuencia de muestreo (samples por segundo)
   sr <- audio@samp.rate
@@ -32,23 +54,29 @@ cutAudio <- function(input_file,
   if (len_audio > num_samples) {
     # 1) Si es más larga, recortamos
     audio@left  <- audio@left[1:num_samples]
-    if (!is.null(audio@right)) {
+    if (audio@stereo) {
       audio@right <- audio@right[1:num_samples]
     }
   } else if (len_audio < num_samples) {
     # 2) Si es más corta, rellenamos con ceros (silencio)
     needed <- num_samples - len_audio
     audio@left  <- c(audio@left,  rep(0, needed))
-    if (!is.null(audio@right)) {
+    if (audio@stereo) {
       audio@right <- c(audio@right, rep(0, needed))
     }
   }
   
-  # Guardamos la versión recortada
+  # Convertimos a enteros antes de guardar (sino sale un warning)
+  audio@left <- round(audio@left * 32767)
+  if (audio@stereo) {
+    audio@right <- round(audio@right * 32767)
+  }
+  
+  # Guardamos la versión procesada
   writeWave(audio, output_file)
 }
-```
 
+```
 
 ```{r}
 # Directorio principal de entrada
