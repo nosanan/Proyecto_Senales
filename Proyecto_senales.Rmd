@@ -257,7 +257,7 @@ validate_audio_files <- function(base_path, genres) {
 }
 
 # Lista de géneros
-genres <- c("jazz", "hardstyle", "regueton", "rock", "rap", "opera", "rancheras")
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
 
 # Validar canciones en las carpetas de géneros
 validation_results <- validate_audio_files("data_recortada", genres)
@@ -343,7 +343,7 @@ extract_all_spectral_centroids <- function(base_path, genres, target_sr = 22050)
 }
 
 # Lista de géneros
-genres <- c("jazz", "hardstyle", "regueton", "rock", "rap", "opera", "rancheras")
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
 
 # Extraer los Centroides Espectrales de todas las canciones
 spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres)
@@ -352,4 +352,3 @@ spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres
 head(spectral_centroids_df)
 
 ```
-
