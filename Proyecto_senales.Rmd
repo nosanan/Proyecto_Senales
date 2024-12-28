@@ -11,14 +11,36 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tuneR)
+library(seewave)
 ```
 
 ```{r}
+# Esta función normaliza la amplitud y unifica la frecuencia de muestreo
+normalize_and_resample <- function(audio, target_sr = 22050) {
+  # Normalizamos la amplitud (entre 0 y 1)
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude > 0) {
+    audio@left <- audio@left / max_amplitude
+    if (audio@stereo) {
+      audio@right <- audio@right / max_amplitude
+    }
+  }
+  
+  # Unificamos la frecuencia de muestreo
+  audio_resampled <- resamp(audio, f = audio@samp.rate, g = target_sr, output = "Wave")
+  
+  return(audio_resampled)
+}
+
 cutAudio <- function(input_file, 
                      output_file, 
-                     duration_seconds = 130) {
+                     duration_seconds = 130, 
+                     target_sr = 22050) {
   # Lee la canción (archivo WAV)
   audio <- readWave(input_file)
+  
+  # Normalizamos y reesampleamos
+  audio <- normalize_and_resample(audio, target_sr)
   
   # Frecuencia de muestreo (samples por segundo)
   sr <- audio@samp.rate
@@ -32,23 +54,29 @@ cutAudio <- function(input_file,
   if (len_audio > num_samples) {
     # 1) Si es más larga, recortamos
     audio@left  <- audio@left[1:num_samples]
-    if (!is.null(audio@right)) {
+    if (audio@stereo) {
       audio@right <- audio@right[1:num_samples]
     }
   } else if (len_audio < num_samples) {
     # 2) Si es más corta, rellenamos con ceros (silencio)
     needed <- num_samples - len_audio
     audio@left  <- c(audio@left,  rep(0, needed))
-    if (!is.null(audio@right)) {
+    if (audio@stereo) {
       audio@right <- c(audio@right, rep(0, needed))
     }
   }
   
-  # Guardamos la versión recortada
+  # Convertimos a enteros antes de guardar (sino sale un warning)
+  audio@left <- round(audio@left * 32767)
+  if (audio@stereo) {
+    audio@right <- round(audio@right * 32767)
+  }
+  
+  # Guardamos la versión procesada
   writeWave(audio, output_file)
 }
-```
 
+```
 
 ```{r}
 # Directorio principal de entrada
@@ -104,3 +132,223 @@ max(file1@left)
 plot(file1)
 ```
 
+La idea general es extraer características como MFCCs, RMS, Tempo y beats, etc. Crear un dataframe con los valores para cada canción y a partir de ahí ir entrenando el modelo para detectar el género musical.
+
+Comprobamos en primer lugar que todas las canciones tienen la misma frecuencia de muestreo:
+
+```{r}
+library(tuneR)
+
+# Función para obtener frecuencias de muestreo de todas las canciones en las carpetas de géneros
+get_all_sampling_rates <- function(base_path) {
+  # Lista de géneros
+  genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+  
+  # Data frame para almacenar los resultados
+  all_sampling_rates <- data.frame(
+    Genre = character(),
+    File = character(),
+    SamplingRate = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Recorremos cada género
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    
+    # Verificar si la carpeta existe
+    if (dir.exists(genre_path)) {
+      # Listar archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      # Extraer frecuencias de muestreo
+      genre_rates <- sapply(wav_files, function(file) {
+        audio <- readWave(file)
+        return(audio@samp.rate) # Frecuencia de muestreo
+      })
+      
+      # Agregar al data.frame
+      genre_df <- data.frame(
+        Genre = genre,
+        File = basename(wav_files),
+        SamplingRate = genre_rates,
+        stringsAsFactors = FALSE
+      )
+      all_sampling_rates <- rbind(all_sampling_rates, genre_df)
+    }
+  }
+  
+  return(all_sampling_rates)
+}
+
+# Ejemplo de uso
+sampling_rates_df <- get_all_sampling_rates("data_recortada")
+
+# Visualizar los resultados
+print(sampling_rates_df)
+
+```
+
+Comprobamos si todas las canciones son válidas para extraer MFCCs:
+
+```{r}
+library(tuneR)
+
+# Función para verificar si un archivo de audio es válido para calcular MFCC
+is_valid_for_mfcc <- function(file_path, target_sr = 22050, min_duration_seconds = 1) {
+  # Leer el archivo de audio
+  audio <- tryCatch({
+    readWave(file_path)
+  }, error = function(e) {
+    message("Error leyendo archivo: ", file_path, " - ", e$message)
+    return(NULL)
+  })
+  
+  # Si no se pudo leer el archivo, no es válido
+  if (is.null(audio)) return(FALSE)
+  
+  # Verificar duración mínima (en muestras)
+  duration_samples <- length(audio@left)
+  if (duration_samples < target_sr * min_duration_seconds) {
+    message("Archivo demasiado corto: ", file_path)
+    return(FALSE)
+  }
+  
+  # Verificar amplitud máxima
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude == 0) {
+    message("Archivo contiene solo silencio: ", file_path)
+    return(FALSE)
+  }
+  
+  # Si pasa todas las verificaciones, es válido
+  return(TRUE)
+}
+
+# Ejemplo de uso con una lista de archivos
+validate_audio_files <- function(base_path, genres) {
+  # Crear un data frame para almacenar los resultados
+  validation_results <- data.frame(
+    Genre = character(),
+    File = character(),
+    IsValid = logical(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar los archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      # Validar cada archivo
+      for (file in wav_files) {
+        is_valid <- is_valid_for_mfcc(file)
+        validation_results <- rbind(validation_results, data.frame(
+          Genre = genre,
+          File = basename(file),
+          IsValid = is_valid
+        ))
+      }
+    }
+  }
+  
+  return(validation_results)
+}
+
+# Lista de géneros
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+
+# Validar canciones en las carpetas de géneros
+validation_results <- validate_audio_files("data_recortada", genres)
+
+# Ver resultados
+print(validation_results)
+
+```
+
+Como la MFCC da error, comenzamos calculando mejor los centroides espectrales de cada canción:
+```{r}
+library(tuneR)
+library(seewave)
+
+# Función para calcular el Centroide Espectral
+calculate_spectral_centroid <- function(file_path, target_sr = 22050) {
+  # Leer el archivo de audio
+  audio <- tryCatch({
+    readWave(file_path)
+  }, error = function(e) {
+    message("Error leyendo archivo: ", file_path, " - ", e$message)
+    return(NULL)
+  })
+  
+  # Si no se pudo leer el archivo, devolver NULL
+  if (is.null(audio)) return(NA)
+  
+  # Renormalizar la amplitud
+  max_amplitude <- max(abs(audio@left))
+  if (max_amplitude > 0) {
+    audio@left <- audio@left / max_amplitude
+    if (audio@stereo) {
+      audio@right <- audio@right / max_amplitude
+    }
+  }
+  
+  # Resamplear si la frecuencia de muestreo no coincide con target_sr
+  if (audio@samp.rate != target_sr) {
+    audio <- resamp(audio, f = audio@samp.rate, g = target_sr, output = "Wave")
+  }
+  
+  # Calcular el espectrograma promedio
+  spectrum <- meanspec(audio, f = target_sr, plot = FALSE)
+  
+  # Calcular el Centroide Espectral
+  tryCatch({
+    specprop(spectrum)$cent
+  }, error = function(e) {
+    message("Error calculando Centroide Espectral para: ", file_path, " - ", e$message)
+    return(NA)
+  })
+}
+
+# Función para extraer el Centroide Espectral de todas las canciones
+extract_all_spectral_centroids <- function(base_path, genres, target_sr = 22050) {
+  # Data frame para almacenar los resultados
+  spectral_centroids <- data.frame()
+  
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar los archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      for (file in wav_files) {
+        # Calcular el Centroide Espectral
+        centroid <- calculate_spectral_centroid(file, target_sr)
+        
+        # Crear un data frame temporal con el resultado
+        centroid_df <- data.frame(
+          Genre = genre,
+          File = basename(file),
+          SpectralCentroid = centroid
+        )
+        
+        # Agregar al data frame principal
+        spectral_centroids <- rbind(spectral_centroids, centroid_df)
+      }
+    }
+  }
+  
+  return(spectral_centroids)
+}
+
+# Lista de géneros
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+
+# Extraer los Centroides Espectrales de todas las canciones
+spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres)
+
+# Ver las primeras filas
+head(spectral_centroids_df)
+
+```
