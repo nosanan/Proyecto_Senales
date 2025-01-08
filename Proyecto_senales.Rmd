@@ -427,6 +427,14 @@ spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres
 
 ```
 
+
+
+
+
+## Clasificación
+
+### Crear Dataset 
+
 ```{r}
 # Lista de características a extraer
 features_dataset <- function(base_path, genres, target_sr = 22050) {
@@ -486,6 +494,9 @@ features_df <- features_dataset("data_recortada", genres)
 
 ```
 
+
+### One-Hot Encoding
+
 ```{r}
 # Usar funciones base de R para One-Hot Encoding
 one_hot <- model.matrix(~ Genre - 1, data = features_df)
@@ -505,21 +516,74 @@ colnames(features_df) <- gsub("Genre", "", colnames(features_df))
 head(features_df)
 ```
 
-## Clasificación
-
-### One-Hot Encoding
-
-```{r}
-labels <- factor(c("jazz", "rock", "rap"))
-one_hot <- model.matrix(~ labels - 1)
-```
 
 ### SVM
+#### Division del Dataset
 
 ```{r}
-library(e1071)
-#model <- svm(features, labels)
+# Cargar la librería necesaria
+if (!require("caret")) install.packages("caret")
+library(caret)
+
+# Definir el porcentaje para el conjunto de entrenamiento (por ejemplo, 70%)
+train_index <- createDataPartition(features_df$jazz, p = 2/3, list = FALSE)
+
+# Dividir en entrenamiento y prueba
+train_data <- features_df[train_index, ]
+test_data <- features_df[-train_index, ]
+
 ```
+
+#### Entrenar el Modelo
+
+```{r}
+# Instalar y cargar la librería necesaria
+if (!require("e1071")) install.packages("e1071")
+library(e1071)
+
+# Crear el modelo SVM
+# Elimina la columna "File" (no es relevante para el modelo)
+train_features <- subset(train_data, select = -File)
+test_features <- subset(test_data, select = -File)
+
+# Variables dependientes (géneros, en formato de 0/1)
+train_labels <- train_features[, c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock")]
+
+# Variables independientes (características)
+train_features <- train_features[, !(names(train_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
+
+# Entrenamiento del modelo
+svm_model <- svm(x = train_features, y = as.factor(colnames(train_labels)[max.col(train_labels)]),
+                 kernel = "linear", cost = 1, scale = TRUE)
+
+# Ver el modelo entrenado
+print(svm_model)
+```
+
+#### Evaluar el Modelo
+
+```{r}
+# Variables independientes del conjunto de prueba
+test_labels <- test_features[, c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock")]
+
+test_features <- test_features[, !(names(test_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
+
+# Predecir con el modelo entrenado
+predictions <- predict(svm_model, test_features)
+
+# Convertir test_labels en factores para comparación
+true_labels <- as.factor(colnames(test_labels)[max.col(test_labels)])
+
+# Matriz de confusión
+confusion_matrix <- table(Predicted = predictions, Actual = true_labels)
+print(confusion_matrix)
+
+# Calcular precisión
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+cat("Precisión del modelo:", accuracy, "\n")
+
+```
+
 
 ## Visualización
 
