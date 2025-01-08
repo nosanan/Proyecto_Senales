@@ -421,7 +421,24 @@ genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras"
 spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres)
 
 # Ver las primeras filas
-head(spectral_centroids_df)
+(spectral_centroids_df)
+
+```
+
+```{r}
+
+energia <- numeric()
+for (audio in rownames(sampling_rates_df)) {
+    wave_data <- readWave(audio)
+    energy <- calculate_zcr(wave_data)
+    energia <- c(energia, energy)
+}
+
+energia
+```
+```{r}
+
+
 
 ```
 
