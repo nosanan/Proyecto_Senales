@@ -525,8 +525,8 @@ head(features_df)
 if (!require("caret")) install.packages("caret")
 library(caret)
 
-# Definir el porcentaje para el conjunto de entrenamiento (por ejemplo, 70%)
-train_index <- createDataPartition(features_df$jazz, p = 2/3, list = FALSE)
+# Definir el porcentaje para el conjunto de entrenamiento 
+train_index <- createDataPartition(features_df$jazz, p = 4/5, list = FALSE)
 
 # Dividir en entrenamiento y prueba
 train_data <- features_df[train_index, ]
@@ -554,7 +554,7 @@ train_features <- train_features[, !(names(train_features) %in% c("hardstyle", "
 
 # Entrenamiento del modelo
 svm_model <- svm(x = train_features, y = as.factor(colnames(train_labels)[max.col(train_labels)]),
-                 kernel = "linear", cost = 1, scale = TRUE)
+                 kernel = "linear", cost = 5, scale = TRUE)
 
 # Ver el modelo entrenado
 print(svm_model)
@@ -596,6 +596,8 @@ plot_waveform <- function(audio, title = "Waveform") {
 }
 ```
 
+
+
 ### Espectrograma
 
 ```{r}
@@ -608,5 +610,84 @@ plot_frequency_spectrum <- function(audio, sr, title = "Frequency Spectrum") {
 }
 ```
 
+```{r}
+plot_waveform_all <- function(base_path, genres, output_dir = NULL) {
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      for (file in wav_files) {
+        # Leer el audio
+        audio <- readWave(file)
+        
+        # Graficar la señal en el tiempo
+        plot(audio@left, type = "l", col = "blue", main = paste("Waveform -", genre),
+             xlab = "Sample Index", ylab = "Amplitude")
+        
+        # Guardar el gráfico si se especifica un directorio de salida
+        if (!is.null(output_dir)) {
+          output_file <- file.path(output_dir, paste0(genre, "_", basename(file), "_waveform.png"))
+          dev.copy(png, output_file)
+          dev.off()
+        }
+      }
+    }
+  }
+}
+```
 
+```{r}
+plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 22050) {
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    if (dir.exists(genre_path)) {
+      # Listar archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      for (file in wav_files) {
+        # Leer el audio
+        audio <- readWave(file)
+        
+        # Remuestrear si es necesario
+        if (audio@samp.rate != target_sr) {
+          audio <- resamp(audio, f = audio@samp.rate, g = target_sr, output = "Wave")
+        }
+        
+        # Graficar el espectrograma
+        n <- length(audio@left)
+        freq <- (0:(n/2)) * (target_sr / n)
+        fft_values <- abs(fft(audio@left) / n)
+        
+        plot(freq, fft_values[1:(n/2 + 1)], type = "l", col = "red", 
+             main = paste("Frequency Spectrum -", genre), 
+             xlab = "Frequency (Hz)", ylab = "Amplitude")
+        
+        # Guardar el gráfico si se especifica un directorio de salida
+        if (!is.null(output_dir)) {
+          output_file <- file.path(output_dir, paste0(genre, "_", basename(file), "_spectrum.png"))
+          dev.copy(png, output_file)
+          dev.off()
+        }
+      }
+    }
+  }
+}
+```
+
+
+```{r}
+# Directorio base
+base_path <- "data_recortada"
+
+# Lista de géneros
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+
+# Crear gráficos de la señal en el tiempo
+plot_waveform_all(base_path, genres)
+
+# Crear gráficos del espectrograma
+plot_spectrum_all(base_path, genres)
+```
 
