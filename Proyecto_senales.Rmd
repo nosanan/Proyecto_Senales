@@ -376,6 +376,8 @@ for (sub in subcarpetas) {
 }
 ```
 
+
+
 ### Ejemplo
 
 ```{r}
@@ -425,6 +427,83 @@ head(spectral_centroids_df)
 
 ```
 
+```{r}
+# Lista de características a extraer
+features_dataset <- function(base_path, genres, target_sr = 22050) {
+  # Data frame vacío
+  features <- data.frame()
+  
+  # Recorremos cada género
+  for (genre in genres) {
+    genre_path <- file.path(base_path, genre)
+    
+    # Verificar si la carpeta existe
+    if (dir.exists(genre_path)) {
+      # Listar archivos .wav
+      wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      for (file in wav_files) {
+        # Leer audio
+        audio <- tryCatch({
+          readWave(file)
+        }, error = function(e) {
+          message("Error leyendo archivo: ", file, " - ", e$message)
+          return(NULL)
+        })
+        
+        # Si el archivo no es válido, pasar al siguiente
+        if (is.null(audio)) next
+        
+        
+        # Extraer características
+        energy <- calculate_energy(audio)
+        zcr <- calculate_zcr(audio)
+        crest_factor <- calculate_crest_factor(audio)
+        spectral_centroid <- calculate_spectral_centroid(file, target_sr)
+        
+        # Agregar fila al dataset
+        features <- rbind(features, data.frame(
+          File = basename(file),
+          Genre = genre,
+          Energy = energy,
+          ZCR = zcr,
+          CrestFactor = crest_factor,
+          SpectralCentroid = spectral_centroid
+        ))
+      }
+    }
+  }
+  
+  return(features)
+}
+
+```
+
+```{r}
+# Crear dataset de características
+genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
+features_df <- features_dataset("data_recortada", genres)
+
+```
+
+```{r}
+# Usar funciones base de R para One-Hot Encoding
+one_hot <- model.matrix(~ Genre - 1, data = features_df)
+
+# Convertir el resultado en un data.frame
+one_hot_df <- as.data.frame(one_hot)
+
+# Combinar el One-Hot Encoding con el dataset original
+features_df <- cbind(features_df, one_hot_df)
+
+# Eliminar la columna "Genre"
+features_df <- subset(features_df, select = -Genre)
+
+# Renombrar las columnas del One-Hot Encoding
+colnames(features_df) <- gsub("Genre", "", colnames(features_df))
+
+head(features_df)
+```
 
 ## Clasificación
 
