@@ -82,9 +82,9 @@ cutAudio <- function(input_file,
 
 ```
 
-# Selección y Extracción de Características
+## Selección y Extracción de Características
 
-## Energía
+### Energía
 
 ```{r}
 # Cálculo de la energía de una señal
@@ -93,7 +93,7 @@ calculate_energy <- function(audio) {
 }
 ```
 
-## Zero-Crossing Rate (ZCR)
+### Zero-Crossing Rate (ZCR)
 
 ```{r}
 # Cálculo de ZCR
@@ -103,7 +103,7 @@ calculate_zcr <- function(audio) {
 }
 ```
 
-## Factor Cresta
+### Factor Cresta
 
 ```{r}
 # Cálculo del factor cresta
@@ -114,7 +114,7 @@ calculate_crest_factor <- function(audio) {
 }
 ```
 
-## BER (Band Energy Ratio)
+### BER (Band Energy Ratio)
 
 ```{r}
 calculate_band_energy_ratio <- function(audio, sr, lower_band, upper_band) {
@@ -127,6 +127,37 @@ calculate_band_energy_ratio <- function(audio, sr, lower_band, upper_band) {
   return(band_energy)
 }
 ```
+
+### Spectral Entropy
+
+```{r}
+calculate_spectral_entropy <- function(audio, sr) {
+  spectrum <- meanspec(audio, f = sr, plot = FALSE)
+  power <- spectrum[, 2]  
+  power <- power / sum(power)
+  spectral_entropy <- -sum(power * log2(power + 1e-10))  # Agregar 1e-10 para evitar log(0)
+  return(spectral_entropy)
+}
+
+```
+
+### AMDF
+
+```{r}
+calculate_amdf <- function(audio, max_lag = 100) {
+  signal <- audio@left
+  n <- length(signal)
+  amdf_values <- numeric(max_lag)
+  for (lag in 1:max_lag) {
+    differences <- abs(signal[1:(n - lag)] - signal[(lag + 1):n])
+    amdf_values[lag] <- mean(differences)
+  }
+  
+  return(amdf_values)
+}
+
+```
+
 
 ### Frecuencia de muestreo
 
@@ -245,7 +276,7 @@ validate_audio_files <- function(base_path, genres) {
 ```
 
 
-## Centroide Espectral
+### Centroide Espectral
 
 ```{r}
 
@@ -291,7 +322,7 @@ calculate_spectral_centroid <- function(file_path, target_sr = 22050) {
 
 ```
 
-### Centroide Espectral grupo de audios
+#### Centroide Espectral grupo de audios
 
 ```{r}
 # Función para extraer el Centroide Espectral de todas las canciones
@@ -327,7 +358,7 @@ extract_all_spectral_centroids <- function(base_path, genres, target_sr = 22050)
 ```
 
 
-### Procesamiento en Datos
+## Procesamiento en Datos
 
 ```{r}
 # Directorio principal de entrada
@@ -376,68 +407,13 @@ for (sub in subcarpetas) {
 }
 ```
 
-
-
-### Ejemplo
-
-```{r}
-file1 <- readWave("data_recortada/jazz/Jazz-at-Mladost-Club-No-More-Blues.wav")
-file1@right
-max(file1@left)
-plot(file1)
-```
-
-La idea general es extraer características como MFCCs, RMS, Tempo y beats, etc. Crear un dataframe con los valores para cada canción y a partir de ahí ir entrenando el modelo para detectar el género musical.
-
-Comprobamos en primer lugar que todas las canciones tienen la misma frecuencia de muestreo:
-
-```{r}
-# Ejemplo de uso
-sampling_rates_df <- get_all_sampling_rates("data_recortada")
-
-# Visualizar los resultados
-print(sampling_rates_df)
-
-```
-
-Comprobamos si todas las canciones son válidas para extraer MFCCs:
-
-```{r}
-# Lista de géneros
-genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
-
-# Validar canciones en las carpetas de géneros
-validation_results <- validate_audio_files("data_recortada", genres)
-
-# Ver resultados
-print(validation_results)
-
-```
-
-Como la MFCC da error, comenzamos calculando mejor los centroides espectrales de cada canción:
-```{r}
-# Lista de géneros
-genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
-
-# Extraer los Centroides Espectrales de todas las canciones
-spectral_centroids_df <- extract_all_spectral_centroids("data_recortada", genres)
-
-# Ver las primeras filas
-(spectral_centroids_df)
-
-```
-
-
-
-
-
 ## Clasificación
 
 ### Crear Dataset 
 
 ```{r}
-# Lista de características a extraer
-features_dataset <- function(base_path, genres, target_sr = 22050) {
+# Función para extraer todas las características
+features_dataset <- function(base_path, genres, target_sr = 22050, max_lag = 100) {
   # Data frame vacío
   features <- data.frame()
   
@@ -462,12 +438,16 @@ features_dataset <- function(base_path, genres, target_sr = 22050) {
         # Si el archivo no es válido, pasar al siguiente
         if (is.null(audio)) next
         
-        
         # Extraer características
         energy <- calculate_energy(audio)
         zcr <- calculate_zcr(audio)
         crest_factor <- calculate_crest_factor(audio)
         spectral_centroid <- calculate_spectral_centroid(file, target_sr)
+        spectral_entropy <- calculate_spectral_entropy(audio, sr = target_sr)
+        
+        amdf_values <- calculate_amdf(audio, max_lag = max_lag)
+        amdf_min <- min(amdf_values)
+        amdf_mean <- mean(amdf_values)
         
         # Agregar fila al dataset
         features <- rbind(features, data.frame(
@@ -476,7 +456,10 @@ features_dataset <- function(base_path, genres, target_sr = 22050) {
           Energy = energy,
           ZCR = zcr,
           CrestFactor = crest_factor,
-          SpectralCentroid = spectral_centroid
+          SpectralCentroid = spectral_centroid,
+          SpectralEntropy = spectral_entropy,
+          AMDF_Min = amdf_min,
+          AMDF_Mean = amdf_mean
         ))
       }
     }
@@ -484,6 +467,7 @@ features_dataset <- function(base_path, genres, target_sr = 22050) {
   
   return(features)
 }
+
 
 ```
 
@@ -526,7 +510,7 @@ if (!require("caret")) install.packages("caret")
 library(caret)
 
 # Definir el porcentaje para el conjunto de entrenamiento 
-train_index <- createDataPartition(features_df$jazz, p = 4/5, list = FALSE)
+train_index <- createDataPartition(features_df$jazz, p = 0.7, list = FALSE)
 
 # Dividir en entrenamiento y prueba
 train_data <- features_df[train_index, ]
@@ -554,7 +538,7 @@ train_features <- train_features[, !(names(train_features) %in% c("hardstyle", "
 
 # Entrenamiento del modelo
 svm_model <- svm(x = train_features, y = as.factor(colnames(train_labels)[max.col(train_labels)]),
-                 kernel = "linear", cost = 5, scale = TRUE)
+                 kernel = "linear", cost = 1, scale = TRUE)
 
 # Ver el modelo entrenado
 print(svm_model)
@@ -562,25 +546,78 @@ print(svm_model)
 
 #### Evaluar el Modelo
 
+
+```{r}
+# Evaluar el modelo de manera general
+evaluate_model_general <- function(predictions, true_labels) {
+  # Asegurar que todas las clases estén presentes en la matriz de confusión
+  all_classes <- sort(union(predictions, true_labels))
+  confusion_matrix <- table(factor(predictions, levels = all_classes), 
+                            factor(true_labels, levels = all_classes))
+  print(confusion_matrix)
+  
+  # Calcular precisión general (accuracy)
+  accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+  
+  # Calcular precisión general (precision promedio ponderado)
+  precision <- sum(diag(confusion_matrix)) / sum(colSums(confusion_matrix))
+  
+  # Calcular especificidad general
+  specificity <- sum(sapply(1:length(all_classes), function(i) {
+    tn <- sum(confusion_matrix) - sum(confusion_matrix[i, ]) - sum(confusion_matrix[, i]) + confusion_matrix[i, i]
+    fp <- sum(confusion_matrix[, i]) - confusion_matrix[i, i]
+    tn / (tn + fp)
+  })) / length(all_classes)
+  
+  # Calcular AUC general (si es multiclase, usar promedio macro)
+  if (!require("pROC")) install.packages("pROC")
+  library(pROC)
+  
+  auc_values <- c()
+  for (class in all_classes) {
+    # Etiquetas binarias para la clase actual
+    true_binary <- ifelse(true_labels == class, 1, 0)
+    predicted_binary <- ifelse(predictions == class, 1, 0)
+    
+    # Verificar si ambas clases (0 y 1) están presentes
+    if (length(unique(true_binary)) == 2) {
+      # Calcular la curva ROC
+      roc_obj <- roc(true_binary, predicted_binary)
+      auc_values <- c(auc_values, auc(roc_obj))
+    } else {
+      cat("Clase omitida en AUC (no tiene ambas etiquetas 0 y 1):", class, "\n")
+    }
+  }
+  auc_general <- mean(auc_values)
+
+  # Mostrar resultados generales
+  cat("\nResultados:\n")
+  cat("Precisión (Accuracy):", accuracy, "\n")
+  cat("Especificidad General:", specificity, "\n")
+  cat("AUC General:", auc_general, "\n")
+  
+  return(list(
+    Accuracy = accuracy,
+    Specificity = specificity,
+    AUC = auc_general
+  ))
+}
+
+```
+
 ```{r}
 # Variables independientes del conjunto de prueba
 test_labels <- test_features[, c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock")]
-
 test_features <- test_features[, !(names(test_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
 
 # Predecir con el modelo entrenado
 predictions <- predict(svm_model, test_features)
 
-# Convertir test_labels en factores para comparación
+# Convertir etiquetas verdaderas en formato de factor
 true_labels <- as.factor(colnames(test_labels)[max.col(test_labels)])
 
-# Matriz de confusión
-confusion_matrix <- table(Predicted = predictions, Actual = true_labels)
-print(confusion_matrix)
-
-# Calcular precisión
-accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-cat("Precisión del modelo:", accuracy, "\n")
+# Evaluar el modelo de manera general
+results <- evaluate_model_general(predictions, true_labels)
 
 ```
 
@@ -588,27 +625,6 @@ cat("Precisión del modelo:", accuracy, "\n")
 ## Visualización
 
 ### Gráficos de la señal en el tiempo
-
-```{r}
-#Modificar para todos los audios y por géneros
-plot_waveform <- function(audio, title = "Waveform") {
-  plot(audio@left, type = "l", col = "blue", main = title, xlab = "Sample Index", ylab = "Amplitude")
-}
-```
-
-
-
-### Espectrograma
-
-```{r}
-#Modificar para todos los audios y por géneros
-plot_frequency_spectrum <- function(audio, sr, title = "Frequency Spectrum") {
-  n <- length(audio@left)
-  freq <- (0:(n/2)) * (sr / n)
-  fft_values <- abs(fft(audio@left) / n)
-  plot(freq, fft_values[1:(n/2 + 1)], type = "l", col = "red", main = title, xlab = "Frequency (Hz)", ylab = "Amplitude")
-}
-```
 
 ```{r}
 plot_waveform_all <- function(base_path, genres, output_dir = NULL) {
@@ -637,6 +653,8 @@ plot_waveform_all <- function(base_path, genres, output_dir = NULL) {
   }
 }
 ```
+
+### Graficos espectrograma
 
 ```{r}
 plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 22050) {
@@ -690,4 +708,5 @@ plot_waveform_all(base_path, genres)
 # Crear gráficos del espectrograma
 plot_spectrum_all(base_path, genres)
 ```
+
 
