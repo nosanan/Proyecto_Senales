@@ -634,6 +634,9 @@ plot_waveform_all <- function(base_path, genres, output_dir = NULL) {
       # Listar archivos .wav
       wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
       
+      # Seleccionar solo los dos primeros archivos
+      wav_files <- head(wav_files, 2)
+      
       for (file in wav_files) {
         # Leer el audio
         audio <- readWave(file)
@@ -652,6 +655,7 @@ plot_waveform_all <- function(base_path, genres, output_dir = NULL) {
     }
   }
 }
+
 ```
 
 ### Graficos espectrograma
@@ -663,6 +667,9 @@ plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 
     if (dir.exists(genre_path)) {
       # Listar archivos .wav
       wav_files <- list.files(genre_path, pattern = "\\.wav$", full.names = TRUE)
+      
+      # Seleccionar solo los dos primeros archivos
+      wav_files <- head(wav_files, 2)
       
       for (file in wav_files) {
         # Leer el audio
@@ -692,6 +699,7 @@ plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 
     }
   }
 }
+
 ```
 
 
