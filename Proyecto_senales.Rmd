@@ -539,7 +539,6 @@ evaluate_model_general <- function(predictions, true_labels) {
     }
   }
   auc_general <- mean(auc_values)
-
   # Mostrar resultados generales
   cat("\nResultados:\n")
   cat("Precisión (Accuracy):", accuracy, "\n")
