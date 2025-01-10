@@ -656,15 +656,15 @@ plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 
 ```{r}
 # Directorio base
 base_path <- "data_recortada"
-
+output_dir <- "plots_visualizacion"
 # Lista de géneros
 genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
 
 # Crear gráficos de la señal en el tiempo
-plot_waveform_all(base_path, genres)
+plot_waveform_all(base_path, genres, output_dir = output_dir)
 
 # Crear gráficos del espectrograma
-plot_spectrum_all(base_path, genres)
+plot_spectrum_all(base_path, genres, output_dir = output_dir)
 ```
 
 
