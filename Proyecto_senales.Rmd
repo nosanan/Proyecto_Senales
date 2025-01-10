@@ -430,7 +430,7 @@ features_df <- features_dataset("data_recortada", genres)
 ```
 
 
-### One-Hot Encoding
+## One-Hot Encoding
 
 ```{r}
 # Usar funciones base de R para One-Hot Encoding
@@ -440,15 +440,15 @@ one_hot <- model.matrix(~ Genre - 1, data = features_df)
 one_hot_df <- as.data.frame(one_hot)
 
 # Combinar el One-Hot Encoding con el dataset original
-features_df <- cbind(features_df, one_hot_df)
+features_df_2 <- cbind(features_df, one_hot_df)
 
 # Eliminar la columna "Genre"
-features_df <- subset(features_df, select = -Genre)
+features_df_2 <- subset(features_df_2, select = -Genre)
 
 # Renombrar las columnas del One-Hot Encoding
-colnames(features_df) <- gsub("Genre", "", colnames(features_df))
+colnames(features_df_2) <- gsub("Genre", "", colnames(features_df_2))
 
-head(features_df)
+head(features_df_2)
 ```
 
 
@@ -460,12 +460,12 @@ head(features_df)
 if (!require("caret")) install.packages("caret")
 library(caret)
 
-# Definir el porcentaje para el conjunto de entrenamiento 
-train_index <- createDataPartition(features_df$jazz, p = 0.7, list = FALSE)
+# Definir el porcentaje para el conjunto de entrenamiento
+train_index <- createDataPartition(features_df_2$jazz, p = 0.7, list = FALSE)
 
 # Dividir en entrenamiento y prueba
-train_data <- features_df[train_index, ]
-test_data <- features_df[-train_index, ]
+train_data <- features_df_2[train_index, ]
+test_data <- features_df_2[-train_index, ]
 
 ```
 
@@ -485,10 +485,10 @@ test_features <- subset(test_data, select = -File)
 train_labels <- train_features[, c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock")]
 
 # Variables independientes (características)
-train_features <- train_features[, !(names(train_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
+train_features_2 <- train_features[, !(names(train_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
 
 # Entrenamiento del modelo
-svm_model <- svm(x = train_features, y = as.factor(colnames(train_labels)[max.col(train_labels)]),
+svm_model <- svm(x = train_features_2, y = as.factor(colnames(train_labels)[max.col(train_labels)]),
                  kernel = "linear", cost = 1, scale = TRUE)
 
 # Ver el modelo entrenado
@@ -497,22 +497,17 @@ print(svm_model)
 
 #### Evaluar el Modelo
 
-
 ```{r}
-# Evaluar el modelo de manera general
 evaluate_model_general <- function(predictions, true_labels) {
   # Asegurar que todas las clases estén presentes en la matriz de confusión
   all_classes <- sort(union(predictions, true_labels))
-  confusion_matrix <- table(factor(predictions, levels = all_classes), 
+  confusion_matrix <- table(factor(predictions, levels = all_classes),
                             factor(true_labels, levels = all_classes))
   cat("Matriz de Confusión (Filas: Predicho, Columnas: Etiquetas Verdaderas):\n")
   print(confusion_matrix)
   
   # Calcular precisión general (accuracy)
   accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
-  
-  # Calcular precisión general (precision promedio ponderado)
-  precision <- sum(diag(confusion_matrix)) / sum(colSums(confusion_matrix))
   
   # Calcular especificidad general
   specificity <- sum(sapply(1:length(all_classes), function(i) {
@@ -526,6 +521,9 @@ evaluate_model_general <- function(predictions, true_labels) {
   library(pROC)
   
   auc_values <- c()
+  roc_curves <- list()
+  
+  # Calcular curvas ROC y AUC individuales por clase
   for (class in all_classes) {
     # Etiquetas binarias para la clase actual
     true_binary <- ifelse(true_labels == class, 1, 0)
@@ -533,17 +531,75 @@ evaluate_model_general <- function(predictions, true_labels) {
     
     # Verificar si ambas clases (0 y 1) están presentes
     if (length(unique(true_binary)) == 2) {
-      # Calcular la curva ROC
+      # Calcular la curva ROC para la clase individual
       roc_obj <- roc(true_binary, predicted_binary, quiet = TRUE)
-      auc_values <- c(auc_values, auc(roc_obj))
+      auc_value <- auc(roc_obj)
+      
+      # Guardar la curva ROC y el AUC
+      roc_curves[[class]] <- roc_obj
+      auc_values <- c(auc_values, auc_value)
+      
+      # Guardar la gráfica ROC de la clase
+      png(paste0("imagenes/Curva_ROC_", class, ".png"), width = 800, height = 600)
+      par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+      plot(1 - roc_obj$specificities, roc_obj$sensitivities, col = "blue", type = "l", 
+           main = paste("Curva ROC - Clase:", class),
+           xlim = c(0, 1), ylim = c(0, 1), xlab = "1 - Especificidad (FPR)", ylab = "Sensibilidad (TPR)")
+      abline(a = 0, b = 1, lty = 2, col = "gray")  # Agregar línea diagonal
+      dev.off()
     }
   }
   auc_general <- mean(auc_values)
-  # Mostrar resultados generales
-  cat("\nResultados:\n")
-  cat("Precisión (Accuracy):", accuracy, "\n")
-  cat("Especificidad General:", specificity, "\n")
-  cat("AUC General:", auc_general, "\n")
+  
+  # Guardar una gráfica con todas las curvas ROC (ejes invertidos)
+  if (length(roc_curves) > 0) {
+    png("imagenes/Curvas_ROC_Todas.png", width = 800, height = 600)
+    par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+    # Obtener los valores de la primera curva ROC
+    roc_obj <- roc_curves[[1]]
+    
+    # Invertir los ejes: Especificidad (1 - FPR) en X y Sensibilidad (TPR) en Y
+    plot(1 - roc_obj$specificities, roc_obj$sensitivities, col = 2, type = "l", 
+         main = "Curvas ROC por Clase",
+         xlim = c(0, 1), ylim = c(0, 1), 
+         xlab = "1 - Especificidad (FPR)", ylab = "Sensibilidad (TPR)")
+    
+    # Graficar las demás curvas ROC invertidas
+    if (length(roc_curves) > 1) {
+      for (i in 2:length(roc_curves)) {
+        roc_obj <- roc_curves[[i]]
+        lines(1 - roc_obj$specificities, roc_obj$sensitivities, col = i + 1)  # Usar lines() para agregar la curva
+      }
+    }
+    
+    legend("bottomright", legend = names(roc_curves), col = 2:(length(roc_curves) + 1), lty = 1, cex = 1.2)
+    abline(a = 0, b = 1, lty = 2, col = "gray")  # Agregar línea diagonal
+    dev.off()
+  }
+  
+  # Ajustar tamaño y márgenes para graficar las barras
+  par(mar = c(10, 4, 4, 2))  # Aumentar márgenes inferiores
+  
+  # Guardar gráfico de especificidad
+  png("imagenes/Especificidad_por_Clase.png", width = 800, height = 600)
+  par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+  specificity_values <- sapply(1:length(all_classes), function(i) {
+    tn <- sum(confusion_matrix) - sum(confusion_matrix[i, ]) - sum(confusion_matrix[, i]) + confusion_matrix[i, i]
+    fp <- sum(confusion_matrix[, i]) - confusion_matrix[i, i]
+    tn / (tn + fp)
+  })
+  barplot(specificity_values, names.arg = all_classes, col = "skyblue",
+          main = "Especificidad por Clase", ylim = c(0, 1), ylab = "Especificidad",
+          las = 2, cex.names = 1.2)  # Rotar etiquetas y ajustar texto
+  dev.off()
+  
+  # Guardar gráfico de AUC
+  png("imagenes/AUC_por_Clase.png", width = 800, height = 600)
+  par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+  barplot(auc_values, names.arg = names(roc_curves), col = "lightgreen",
+          main = "AUC por Clase", ylim = c(0, 1), ylab = "AUC",
+          las = 2, cex.names = 1.2)  # Rotar etiquetas y ajustar texto
+  dev.off()
   
   return(list(
     Accuracy = accuracy,
@@ -554,23 +610,18 @@ evaluate_model_general <- function(predictions, true_labels) {
 
 ```
 
+
+
 ```{r}
 # Variables independientes del conjunto de prueba
 test_labels <- test_features[, c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock")]
-test_features <- test_features[, !(names(test_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
-
-# Predecir con el modelo entrenado
-predictions <- predict(svm_model, test_features)
-
-# Convertir etiquetas verdaderas en formato de factor
-true_labels <- as.factor(colnames(test_labels)[max.col(test_labels)])
+test_features_2 <- test_features[, !(names(test_features) %in% c("hardstyle", "jazz", "opera", "Rancheras", "Rap", "Regueton", "rock"))]
 
 # Evaluar el modelo de manera general
 results <- evaluate_model_general(predictions, true_labels)
+results
 
 ```
-
-
 ## Visualización
 
 ### Gráficos de la señal en el tiempo
@@ -649,21 +700,6 @@ plot_spectrum_all <- function(base_path, genres, output_dir = NULL, target_sr = 
   }
 }
 
-```
-
-
-```{r}
-# Directorio base
-base_path <- "data_recortada"
-output_dir <- "plots_visualizacion"
-# Lista de géneros
-genres <- c("jazz", "hardstyle", "Regueton", "rock", "Rap", "opera", "Rancheras")
-
-# Crear gráficos de la señal en el tiempo
-plot_waveform_all(base_path, genres, output_dir = output_dir)
-
-# Crear gráficos del espectrograma
-plot_spectrum_all(base_path, genres, output_dir = output_dir)
 ```
 
 
