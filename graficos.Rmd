@@ -1,0 +1,226 @@
+---
+title: "Correlación"
+author: "Daniela Meriño"
+date: "2025-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## prueba correlación
+
+```{r}
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(reshape2)
+
+# Cargar el dataset
+dataset <- read.csv("dataset.csv")
+dataset <- dataset[-c(1,10:ncol(dataset))]
+
+# Seleccionar las columnas numéricas para el análisis
+# Excluir la columna 'File' (que no es numérica)
+numerical_data <- dataset[, sapply(dataset, is.numeric)]
+
+# Calcular la matriz de correlación
+correlation_matrix <- cor(numerical_data)
+
+# Visualizar la matriz de correlación como un heatmap
+correlation_melt <- melt(correlation_matrix)
+ggplot(correlation_melt, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab",
+                       name = "Correlación") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(title = "Matriz de Correlación", x = "Características", y = "Características")
+
+
+```
+```{r}
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(reshape2)
+
+# Cargar el dataset
+dataset <- read.csv("dataset.csv")
+
+cat("Mean:", mean(dataset$Energy), "Sd:", sd(dataset$Energy), "Error:",sd(dataset$Energy)/mean(dataset$Energy)*100 , "\n")
+
+cat("Mean:", mean(dataset$ZCR), "Sd:", sd(dataset$ZCR), "Error:",sd(dataset$ZCR)/mean(dataset$ZCR)*100 , "\n")
+
+cat("Mean:", mean(dataset$CrestFactor), "Sd:", sd(dataset$CrestFactor), "Error:",sd(dataset$CrestFactor)/mean(dataset$CrestFactor)*100 , "\n")
+
+cat("Mean:", mean(dataset$Tempo), "Sd:", sd(dataset$Tempo), "Error:",sd(dataset$Tempo)/mean(dataset$Tempo)*100 , "\n")
+
+cat("Mean:", mean(dataset$SpectralCentroid), "Sd:", sd(dataset$SpectralCentroid), "Error:",sd(dataset$SpectralCentroid)/mean(dataset$SpectralCentroid)*100 , "\n")
+
+
+cat("Mean:", mean(dataset$SpectralEntropy), "Sd:", sd(dataset$SpectralEntropy), "Error:",sd(dataset$SpectralEntropy)/mean(dataset$SpectralEntropy)*100 , "\n")
+
+
+cat("Mean:", mean(dataset$AMDF_Min), "Sd:", sd(dataset$AMDF_Min), "Error:",sd(dataset$AMDF_Min)/mean(dataset$AMDF_Min)*100 , "\n")
+
+cat("Mean:", mean(dataset$AMDF_Mean), "Sd:", sd(dataset$AMDF_Mean), "Error:",sd(dataset$AMDF_Mean)/mean(dataset$AMDF_Mean)*100 , "\n")
+
+```
+
+```{r}
+rm(list=ls())
+# Cargar librerías necesarias
+library(dplyr)
+
+# Cargar el dataset
+dataset <- read.csv("dataset.csv")
+
+# Identificar las columnas de características y de géneros
+# Ajusta los índices de columnas según el archivo
+features_columns <- 2:9  # Índices de las columnas de características
+genres_columns <- 10:ncol(dataset)  # Índices de las columnas de géneros
+
+# Crear un nuevo dataframe para almacenar los resultados
+averages_by_genre <- data.frame()
+
+# Calcular la media de las características por género
+for (genre in colnames(dataset)[genres_columns]) {
+  # Filtrar las filas donde el género está presente
+  genre_data <- dataset %>% filter(!!sym(genre) == 1)
+  
+  # Calcular las medias de las características
+  averages <- colMeans(genre_data[, features_columns], na.rm = TRUE)
+  
+  # Crear un dataframe temporal con los resultados
+  temp <- data.frame(t(averages))
+  temp$Genre <- genre  # Añadir el nombre del género
+  
+  # Añadir los resultados al dataframe final
+  averages_by_genre <- rbind(averages_by_genre, temp)
+}
+
+# Guardar los resultados en un archivo CSV
+write.csv(averages_by_genre, "averages_by_genre.csv", row.names = FALSE)
+
+# Cargar el dataset
+averages_by_genre <- read.csv("averages_by_genre.csv")
+
+# Obtener los nombres de las columnas numéricas (excluyendo la columna "Genre")
+features_columns <- colnames(averages_by_genre)[colnames(averages_by_genre) != "Genre"]
+
+# Crear una carpeta para guardar las gráficas
+output_dir <- "graficas_caracteristicas"
+dir.create(output_dir, showWarnings = FALSE)
+
+# Graficar y guardar cada característica como una imagen PNG
+for (feature in features_columns) {
+  # Nombre del archivo
+  file_name <- paste0(output_dir, "/", feature, ".png")
+  
+  # Guardar el gráfico
+  png(file_name, width = 1200, height = 600) # Crear un archivo PNG
+  plot(1:nrow(averages_by_genre), averages_by_genre[[feature]], type = "b", pch = 19, col = "blue",
+       main = paste("Gráfico de", feature), xlab = "Índice", ylab = feature, cex.lab=1.5,cex.main = 2,cex.axis = 1.5)
+  dev.off() # Cerrar el archivo
+}
+
+cat("Las gráficas se han guardado en la carpeta:", output_dir, "\n")
+
+
+```
+
+```{r}
+
+rm(list=ls())
+# Cargar librerías necesarias
+library(dplyr)
+
+# Cargar el dataset
+dataset <- read.csv("dataset.csv")
+
+# Identificar las columnas de características y de géneros
+# Ajusta los índices de columnas según el archivo
+features_columns <- 2:9  # Índices de las columnas de características
+genres_columns <- 10:ncol(dataset)  # Índices de las columnas de géneros
+
+# Crear un nuevo dataframe para almacenar los resultados
+averages_by_genre <- data.frame()
+
+# Calcular la media y la varianza de las características por género
+for (genre in colnames(dataset)[genres_columns]) {
+  # Filtrar las filas donde el género está presente
+  genre_data <- dataset %>% filter(!!sym(genre) == 1)
+  
+  # Calcular las medias y varianzas de las características
+  averages <- colMeans(genre_data[, features_columns], na.rm = TRUE)
+  variances <- apply(genre_data[, features_columns], 2, var, na.rm = TRUE)
+  
+  # Crear un dataframe temporal con los resultados
+  temp <- data.frame(t(averages), t(variances))
+  colnames(temp) <- c(paste0("Mean_", colnames(genre_data[, features_columns])),
+                      paste0("Variance_", colnames(genre_data[, features_columns])))
+  temp$Genre <- genre  # Añadir el nombre del género
+  
+  # Añadir los resultados al dataframe final
+  averages_by_genre <- rbind(averages_by_genre, temp)
+}
+
+# Guardar los resultados en un archivo CSV
+write.csv(averages_by_genre, "averages_by_genre_with_variances.csv", row.names = FALSE)
+
+# Cargar el dataset actualizado
+averages_by_genre <- read.csv("averages_by_genre_with_variances.csv")
+
+# Obtener los nombres de las columnas numéricas de las medias (excluyendo "Genre")
+features_columns <- colnames(averages_by_genre)[grepl("Mean_", colnames(averages_by_genre))]
+
+averages_by_genre
+```
+
+```{r}
+
+# Crear una carpeta para guardar las gráficas
+output_dir <- "graficas_dispersion_error"
+dir.create(output_dir, showWarnings = FALSE)
+
+# Obtener las columnas de medias y varianzas
+mean_columns <- colnames(averages_by_genre)[grepl("Mean_", colnames(averages_by_genre))]
+variance_columns <- colnames(averages_by_genre)[grepl("Variance_", colnames(averages_by_genre))]
+
+# Graficar cada característica con barras de error
+for (i in seq_along(mean_columns)) {
+  mean_col <- mean_columns[i]
+  var_col <- variance_columns[i]
+  
+  # Crear un dataframe temporal para la característica actual
+  temp_data <- data.frame(
+    Genre = averages_by_genre$Genre,
+    Mean = averages_by_genre[[mean_col]],
+    SD = sqrt(averages_by_genre[[var_col]])  # Convertir varianza a desviación estándar
+  )
+  
+  # Nombre del archivo para guardar
+  file_name <- paste0(output_dir, "/", gsub("Mean_", "", mean_col), "_scatter_error.png")
+  
+  # Crear y guardar el gráfico de dispersión con barras de error
+  p <- ggplot(temp_data, aes(x = Genre, y = Mean)) +
+    geom_point(color = "blue", size = 3) +  # Puntos de dispersión
+    geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD), width = 0.2, color = "red") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+          axis.text.y = element_text(size = 16),
+          axis.title = element_text(size = 20),
+          plot.title = element_text(size = 24, face = "bold")) +
+    labs(title = paste("Gráfico de dispersión de", gsub("Mean_", "", mean_col)), 
+         x = "Géneros", y = "Valor promedio")
+  
+  ggsave(file_name, plot = p, width = 10, height = 6)
+}
+
+cat("Las gráficas de dispersión con barras de error se han guardado en la carpeta:", output_dir, "\n")
+
+```
+
