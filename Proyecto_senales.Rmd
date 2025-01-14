@@ -541,11 +541,11 @@ evaluate_model_general <- function(predictions, true_labels) {
       
       # Guardar la gráfica ROC de la clase
       png(paste0("imagenes/Curva_ROC_", class, ".png"), width = 800, height = 600)
-      par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+      par(cex.axis = 2, cex.lab = 2, cex.main = 2)  # Ajustar tamaños de texto
       plot(1 - roc_obj$specificities, roc_obj$sensitivities, col = "blue", type = "l", 
            main = paste("Curva ROC - Clase:", class),
            xlim = c(0, 1), ylim = c(0, 1), xlab = "1 - Especificidad (FPR)", ylab = "Sensibilidad (TPR)")
-      abline(a = 0, b = 1, lty = 2, col = "gray")  # Agregar línea diagonal
+      abline(a = 0, b = 1, lty = 2, col = "gray", lw=5)  # Agregar línea diagonal
       dev.off()
     }
   }
@@ -554,7 +554,7 @@ evaluate_model_general <- function(predictions, true_labels) {
   # Guardar una gráfica con todas las curvas ROC (ejes invertidos)
   if (length(roc_curves) > 0) {
     png("imagenes/Curvas_ROC_Todas.png", width = 800, height = 600)
-    par(cex.axis = 1.2, cex.lab = 1.5, cex.main = 1.8)  # Ajustar tamaños de texto
+    par(cex.axis = 1.5, cex.lab = 1.5, cex.main = 1.5)  # Ajustar tamaños de texto
     # Obtener los valores de la primera curva ROC
     roc_obj <- roc_curves[[1]]
     
@@ -562,17 +562,17 @@ evaluate_model_general <- function(predictions, true_labels) {
     plot(1 - roc_obj$specificities, roc_obj$sensitivities, col = 2, type = "l", 
          main = "Curvas ROC por Clase",
          xlim = c(0, 1), ylim = c(0, 1), 
-         xlab = "1 - Especificidad (FPR)", ylab = "Sensibilidad (TPR)")
+         xlab = "1 - Especificidad (FPR)", ylab = "Sensibilidad (TPR)", lwd=4)
     
     # Graficar las demás curvas ROC invertidas
     if (length(roc_curves) > 1) {
       for (i in 2:length(roc_curves)) {
         roc_obj <- roc_curves[[i]]
-        lines(1 - roc_obj$specificities, roc_obj$sensitivities, col = i + 1)  # Usar lines() para agregar la curva
+        lines(1 - roc_obj$specificities, roc_obj$sensitivities, col = i + 1, lwd=4)  # Usar lines() para agregar la curva
       }
     }
     
-    legend("bottomright", legend = names(roc_curves), col = 2:(length(roc_curves) + 1), lty = 1, cex = 1.2)
+    legend("bottomright", legend = names(roc_curves), col = 2:(length(roc_curves) + 1), lty = 1, cex = 1.5)
     abline(a = 0, b = 1, lty = 2, col = "gray")  # Agregar línea diagonal
     dev.off()
   }
